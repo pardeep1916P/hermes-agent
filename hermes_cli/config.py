@@ -2812,12 +2812,35 @@ def save_env_value(key: str, value: str):
     invalidate_env_cache()
 
 
-def custom_endpoint_key_env(identity: str) -> str:
+def custom_endpoint_key_env(identity: str, path: str = "") -> str:
     """Env var name holding a custom endpoint's API key.
     ``identity`` is the endpoint's own id (Desktop endpoint id, or ``host:port`` for CLI setup),
-    so two endpoints on one host get separate slots. The fixed ``HERMES_CUSTOM_`` prefix keeps the
-    name POSIX-valid when the slug starts with a digit (``save_env_value`` rejects those)."""
-    slug = re.sub(r"[^A-Z0-9]+", "_", str(identity or "").upper()).strip("_")
+    so two endpoints on one host get separate slots. An optional URL ``path`` separates channels
+    on the same host; trailing ``/v1`` is stripped so standard OpenAI-compatible endpoints keep
+    their historical host-only env name. The fixed ``HERMES_CUSTOM_`` prefix keeps the name
+    POSIX-valid when the slug starts with a digit (``save_env_value`` rejects those)."""
+    identity_str = str(identity or "").strip()
+    path_str = str(path or "").strip()
+    if not path_str and "/" in identity_str:
+        if identity_str.startswith(("http://", "https://")):
+            import urllib.parse
+            parsed = urllib.parse.urlparse(identity_str)
+            identity_str = parsed.hostname or ""
+            if parsed.port:
+                identity_str = f"{identity_str}_{parsed.port}"
+            path_str = parsed.path
+        else:
+            parts = identity_str.split("/", 1)
+            identity_str = parts[0]
+            path_str = "/" + parts[1]
+
+    identity_slug = re.sub(r"[^A-Z0-9]+", "_", identity_str.upper()).strip("_")
+    clean_path = re.sub(r"/+$", "", path_str)
+    if clean_path.lower().endswith("/v1"):
+        clean_path = clean_path[:-3]
+    path_slug = re.sub(r"[^A-Z0-9]+", "_", clean_path.upper()).strip("_")
+    slug_parts = [p for p in (identity_slug, path_slug) if p]
+    slug = "_".join(slug_parts)
     return f"HERMES_CUSTOM_{slug}_API_KEY" if slug else "HERMES_CUSTOM_API_KEY"
 
 

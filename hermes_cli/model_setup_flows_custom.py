@@ -161,16 +161,16 @@ def _model_flow_custom(config):
     if context_length is None and model_name:
         _report_context_length_detection(model_name, effective_url, effective_key)
 
-    # The key goes to .env and config.yaml only references it. Keyed on host:port
-    # so two servers on one machine keep separate credentials.
-    # See #69449.
+    # The key goes to .env and config.yaml only references it. Keyed on host:port and path
+    # so two servers or channels on one machine/host keep separate credentials.
+    # See #69449, #140958.
     custom_key_env = ""
     if effective_key:
         _parsed = urllib.parse.urlparse(effective_url)
         _identity = _parsed.hostname or ""
         if _parsed.port:
             _identity = f"{_identity}_{_parsed.port}"
-        custom_key_env = custom_endpoint_key_env(_identity)
+        custom_key_env = custom_endpoint_key_env(_identity, _parsed.path)
         save_env_value(custom_key_env, effective_key)
         print(f"  API key saved to .env as {custom_key_env}")
 

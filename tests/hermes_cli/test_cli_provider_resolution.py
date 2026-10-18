@@ -876,3 +876,28 @@ def test_custom_endpoint_key_env_is_a_valid_posix_name_for_ip_endpoints():
     for identity in ("127.0.0.1_8080", "0.0.0.0", "10.0.0.7:11434", "", "-–-"):
         assert _ENV_VAR_NAME_RE.match(custom_endpoint_key_env(identity)), identity
 
+
+def test_path_scoped_channels_on_one_host_keep_separate_credentials():
+    """Distinct paths on the same host resolve to distinct environment variable slots (#140958)."""
+    from hermes_cli.config import custom_endpoint_key_env
+
+    req_slot = custom_endpoint_key_env("api.maxplus-ai.cc", "/ai-model-request/v1")
+    bomb_slot = custom_endpoint_key_env("api.maxplus-ai.cc", "/gpt-bomb-ultra/v1")
+    jek_slot = custom_endpoint_key_env("api.maxplus-ai.cc", "/jek/v1")
+
+    assert req_slot == "HERMES_CUSTOM_API_MAXPLUS_AI_CC_AI_MODEL_REQUEST_API_KEY"
+    assert bomb_slot == "HERMES_CUSTOM_API_MAXPLUS_AI_CC_GPT_BOMB_ULTRA_API_KEY"
+    assert jek_slot == "HERMES_CUSTOM_API_MAXPLUS_AI_CC_JEK_API_KEY"
+    assert len({req_slot, bomb_slot, jek_slot}) == 3
+
+
+def test_trailing_v1_keeps_the_historical_host_only_env_name():
+    """An endpoint path of /v1 or / preserves the historical host-only env variable name (#140958)."""
+    from hermes_cli.config import custom_endpoint_key_env
+
+    assert custom_endpoint_key_env("api.maxplus-ai.cc", "/v1") == "HERMES_CUSTOM_API_MAXPLUS_AI_CC_API_KEY"
+    assert custom_endpoint_key_env("api.maxplus-ai.cc", "/v1/") == "HERMES_CUSTOM_API_MAXPLUS_AI_CC_API_KEY"
+    assert custom_endpoint_key_env("api.maxplus-ai.cc", "/") == "HERMES_CUSTOM_API_MAXPLUS_AI_CC_API_KEY"
+    assert custom_endpoint_key_env("api.maxplus-ai.cc", "") == "HERMES_CUSTOM_API_MAXPLUS_AI_CC_API_KEY"
+    assert custom_endpoint_key_env("api.maxplus-ai.cc") == "HERMES_CUSTOM_API_MAXPLUS_AI_CC_API_KEY"
+
